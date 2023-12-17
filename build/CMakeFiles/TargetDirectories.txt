@@ -1,0 +1,3 @@
+C:/Users/sebam/Documents/GeoMod/build/CMakeFiles/GeoMod.dir
+C:/Users/sebam/Documents/GeoMod/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/sebam/Documents/GeoMod/build/CMakeFiles/ZERO_CHECK.dir
