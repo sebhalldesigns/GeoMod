@@ -19,8 +19,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 HGLRC glRenderContextHandle;
 float width;
 float height;
-int currentMouseXPos;
-int currentMouseYPos;
+int currentMouseScreenPosX;
+int currentMouseScreenPosY;
+gPoint currentMousePos;
 
 float originX = 0.0f;
 float originY = 0.0f;
@@ -228,14 +229,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     glBegin(GL_LINES);
                     glColor4f(0.25f, 1.0f, 0.25f, 0.5f);
                     glVertex2d((workingPoint.value().x + originX) * scale, (workingPoint.value().y + originY) * scale);
-                    glVertex2f((float)currentMouseXPos, (float)currentMouseYPos);
+                    glVertex2d((currentMousePos.x + originX) * scale, (currentMousePos.y + originY) * scale);
                     glEnd();
                 }
             }
                 
             glColor4f(0.25f, 1.0f, 0.25f, 0.5f);
             glBegin(GL_POINTS);
-            glVertex2f((float)currentMouseXPos, (float)currentMouseYPos);
+            glVertex2d((currentMousePos.x + originX) * scale, (currentMousePos.y + originY) * scale);
             glEnd();
 
             SwapBuffers(hdc);
@@ -246,30 +247,32 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             int xPos = GET_X_LPARAM(lParam);
             int yPos = GET_Y_LPARAM(lParam);
 
-            int dX = xPos - currentMouseXPos;
-            int dY = yPos - currentMouseYPos;
+            int dX = xPos - currentMouseScreenPosX;
+            int dY = yPos - currentMouseScreenPosY;
+
+            currentMouseScreenPosX = xPos;
+            currentMouseScreenPosY = yPos;
+
+            
             
             gPoint newPoint = {((float) xPos / scale) - originX, ((float) yPos / scale) - originY};
-
-            currentMouseXPos = xPos;
-            currentMouseYPos = yPos;
+            
+            currentMousePos = newPoint;
+            
 
             for (gPoint point : points) {
                 if (point.IsNear(newPoint, 10.0)) {
-                    currentMouseXPos = point.x;
-                    currentMouseYPos = point.y;
+                    currentMousePos = point;
                 }
             }
 
             for (gLine line : lines) {
                 if (line.start.IsNear(newPoint, 10.0)) {
-                    currentMouseXPos = line.start.x;
-                    currentMouseYPos = line.start.y;
+                    currentMousePos = line.start;
                 }
 
                 if (line.end.IsNear(newPoint, 10.0)) {
-                    currentMouseXPos = line.end.x;
-                    currentMouseYPos = line.end.y;
+                    currentMousePos = line.end;
                 }
             }
 
@@ -295,22 +298,18 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     case WM_LBUTTONDOWN:
             {
-                currentMouseXPos = GET_X_LPARAM(lParam);
-                currentMouseYPos = GET_Y_LPARAM(lParam);
-
-                gPoint newPoint = {((float) currentMouseXPos / scale) - originX, ((float) currentMouseYPos / scale) - originY};
-
+                
                 if (editMode == PNT) {
-                    points.push_back(newPoint);
+                    points.push_back(currentMousePos);
                 } else if (editMode == LINE || editMode == CIRCLE) {
                     if (!workingPoint.has_value()) {
-                        workingPoint = newPoint;
+                        workingPoint = currentMousePos;
                     } else {
                         if (editMode == LINE) {
-                            lines.push_back({workingPoint.value(), newPoint});
+                            lines.push_back({workingPoint.value(), currentMousePos});
                             workingPoint.reset();
                         } else {
-                            circles.push_back({workingPoint.value(), newPoint});
+                            circles.push_back({workingPoint.value(), currentMousePos});
                             workingPoint.reset();
                         }
                     }
