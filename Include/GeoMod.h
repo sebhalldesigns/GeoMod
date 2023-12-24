@@ -16,8 +16,13 @@
 #ifndef GEOMOD_H
 #define GEOMOD_H
 
+#define _USE_MATH_DEFINES
 #include <math.h>
 #include <stdio.h>
+#include <vector>
+
+static const double TAU = 2.0*M_PI;
+
 //  a point is a simple location in 3D space, with no
 //  regard to size, location, direction etc
 struct gPoint {
@@ -54,6 +59,18 @@ struct gPlane {
 struct gCircle {
     gPoint centre;
     gPoint radial;
+
+    std::vector<gLine> Approximate(int lod) {
+        double radius = sqrt(pow(radial.x - centre.x, 2) + pow(radial.y - centre.y, 2) + pow(radial.z - centre.z, 2));
+        std::vector<gLine> workingVector;
+
+        int numPoints = lod*3;
+        for (int i = 0; i < numPoints; i++) {
+            workingVector.push_back({{ centre.x + radius * sin( i * TAU / numPoints ), centre.y + radius * cos( i * TAU / numPoints ) }, { centre.x + radius * sin( (i+1)* TAU / numPoints ), centre.y + radius * cos( (i+1) * TAU / numPoints ) }});
+        }
+
+        return workingVector;
+    }
 };
 
 

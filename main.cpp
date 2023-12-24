@@ -11,6 +11,7 @@
 #include <gl/GLU.h>
 #include <vector>
 #include <optional>
+#include <cstdint>
 
 #include "Include/GeoMod.h"
 
@@ -238,6 +239,25 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             glBegin(GL_POINTS);
             glVertex2d((currentMousePos.x + originX) * scale, (currentMousePos.y + originY) * scale);
             glEnd();
+
+            for (int i = 0; i < 10; i++) {
+                gCircle circle;
+                circle.centre = {50.0+(150.0*i), 50.0};
+                circle.radial = {50.0+(150.0*i), 100.0};
+                glBegin(GL_POINTS);
+                glVertex2d((circle.centre.x + originX) * scale, (circle.centre.y + originY) * scale);
+                glVertex2d((circle.radial.x + originX) * scale, (circle.radial.y + originY) * scale);
+                glEnd();
+
+                glBegin(GL_LINES);
+                std::vector<gLine> clines = circle.Approximate(5);
+                for (gLine line : clines) {
+                    glVertex2d((line.start.x + originX) * scale, (line.start.y + originY) * scale);
+                    glVertex2d((line.end.x + originX) * scale, (line.end.y + originY) * scale);
+                }
+                glEnd();
+            } 
+            
 
             SwapBuffers(hdc);
             EndPaint(hwnd, &ps);
