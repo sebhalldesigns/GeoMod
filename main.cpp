@@ -27,6 +27,15 @@ float originY = 0.0f;
 float scale = 1.0f;
 
 std::vector<gPoint> points;
+std::vector<gLine> lines;
+std::vector<gCircle> circles;
+
+enum {
+    NONE,
+    POINT,
+    LINE,
+    CIRCLE,
+} editMode;
 
 int main() {
 
@@ -228,6 +237,29 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 points.push_back({((float) currentMouseXPos / scale) - originX, ((float) currentMouseYPos / scale) - originY});
             }
             return 0;
+    
+    case WM_CHAR:{
+        uint64_t character = wParam;
+        printf("WMCHAR %c %llu\n", character, character);
+        switch (character) {
+            case 49: {
+                editMode = NONE;
+                SetWindowText(hwnd, L"NONE");
+                return 0;
+            }   
+            case 50: {
+                editMode = LINE;
+                SetWindowText(hwnd, L"LINE");
+                return 0;
+            }
+            case 51: {
+                editMode = CIRCLE;
+                SetWindowText(hwnd, L"CIRCLE");
+                return 0;
+            }
+        }
+        return 0;
+    }
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }

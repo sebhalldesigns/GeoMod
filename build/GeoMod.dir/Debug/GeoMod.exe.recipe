@@ -2,10 +2,10 @@
 <Project>
   <ProjectOutputs>
     <ProjectOutput>
-      <FullPath>C:\Users\sebam\Documents\GeoMod\build\x64\Debug\ZERO_CHECK</FullPath>
+      <FullPath>C:\Users\sebam\GeoMod\build\x64\Debug\ZERO_CHECK</FullPath>
     </ProjectOutput>
     <ProjectOutput>
-      <FullPath>C:\Users\sebam\Documents\GeoMod\build\Debug\GeoMod.exe</FullPath>
+      <FullPath>C:\Users\sebam\GeoMod\build\Debug\GeoMod.exe</FullPath>
     </ProjectOutput>
   </ProjectOutputs>
   <ContentFiles />
