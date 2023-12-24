@@ -40,8 +40,8 @@ struct gPlane {
 //  a circle can be defined as the perpendicular bisector of a line, 
 //  with constant radius or as a plane with a normal and a constant radius.
 struct gCircle {
-    gPoint normal;
-    double radius;
+    gPoint centre;
+    gPoint radial;
 };
 
 

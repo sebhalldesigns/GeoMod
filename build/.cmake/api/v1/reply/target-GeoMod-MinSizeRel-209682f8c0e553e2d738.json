@@ -48,7 +48,7 @@
 					"fragment" : "/DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O1 /Ob1 /DNDEBUG"
 				},
 				{
-					"fragment" : "-std:c++14"
+					"fragment" : "-std:c++17"
 				}
 			],
 			"language" : "CXX",
@@ -58,7 +58,7 @@
 				[
 					1
 				],
-				"standard" : "14"
+				"standard" : "17"
 			},
 			"sourceIndexes" : 
 			[

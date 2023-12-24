@@ -10,6 +10,7 @@
 #include <gl/GL.h>
 #include <gl/GLU.h>
 #include <vector>
+#include <optional>
 
 #include "Include/GeoMod.h"
 
@@ -30,9 +31,11 @@ std::vector<gPoint> points;
 std::vector<gLine> lines;
 std::vector<gCircle> circles;
 
+std::optional<gPoint> workingPoint;
+
 enum {
     NONE,
-    POINT,
+    PNT,
     LINE,
     CIRCLE,
 } editMode;
@@ -186,16 +189,54 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             // end of rendering
 
-            glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
+            
             glPointSize(7.5f);
-            glBegin(GL_POINTS);
-                glVertex2f((float)currentMouseXPos, (float)currentMouseYPos);
-                for (gPoint point : points) {
-                    glVertex2d((point.x + originX) * scale, (point.y + originY) * scale);
-                }
-                
-            glEnd();
+            glLineWidth(2.5f);
 
+            
+            for (gPoint point : points) {
+                glBegin(GL_POINTS);
+                glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
+                glVertex2d((point.x + originX) * scale, (point.y + originY) * scale);
+                glEnd();
+            }
+
+            for (gLine line : lines) {
+                glBegin(GL_LINES);
+                glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
+                glVertex2d((line.start.x + originX) * scale, (line.start.y + originY) * scale);
+                glVertex2d((line.end.x + originX) * scale, (line.end.y + originY) * scale);
+                glEnd();
+            }
+
+             for (gLine line : lines) {
+                glBegin(GL_POINTS);
+                glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
+                glVertex2d((line.start.x + originX) * scale, (line.start.y + originY) * scale);
+                glVertex2d((line.end.x + originX) * scale, (line.end.y + originY) * scale);
+                glEnd();
+            }
+
+
+            if (workingPoint.has_value()) {
+                glBegin(GL_POINTS);
+                glColor4f(0.25f, 1.0f, 0.25f, 0.5f);
+                glVertex2d((workingPoint.value().x + originX) * scale, (workingPoint.value().y + originY) * scale);
+                glEnd();
+
+                if (editMode == LINE) {
+                    glBegin(GL_LINES);
+                    glColor4f(0.25f, 1.0f, 0.25f, 0.5f);
+                    glVertex2d((workingPoint.value().x + originX) * scale, (workingPoint.value().y + originY) * scale);
+                    glVertex2f((float)currentMouseXPos, (float)currentMouseYPos);
+                    glEnd();
+                }
+            }
+                
+            glColor4f(0.25f, 1.0f, 0.25f, 0.5f);
+            glBegin(GL_POINTS);
+            glVertex2f((float)currentMouseXPos, (float)currentMouseYPos);
+            glEnd();
 
             SwapBuffers(hdc);
             EndPaint(hwnd, &ps);
@@ -234,7 +275,25 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 currentMouseXPos = GET_X_LPARAM(lParam);
                 currentMouseYPos = GET_Y_LPARAM(lParam);
 
-                points.push_back({((float) currentMouseXPos / scale) - originX, ((float) currentMouseYPos / scale) - originY});
+                gPoint newPoint = {((float) currentMouseXPos / scale) - originX, ((float) currentMouseYPos / scale) - originY};
+
+                if (editMode == PNT) {
+                    points.push_back(newPoint);
+                } else if (editMode == LINE || editMode == CIRCLE) {
+                    if (!workingPoint.has_value()) {
+                        workingPoint = newPoint;
+                    } else {
+                        if (editMode == LINE) {
+                            lines.push_back({workingPoint.value(), newPoint});
+                            workingPoint.reset();
+                        } else {
+                            circles.push_back({workingPoint.value(), newPoint});
+                            workingPoint.reset();
+                        }
+                    }
+                }
+    	
+                
             }
             return 0;
     
@@ -248,11 +307,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 return 0;
             }   
             case 50: {
+                editMode = PNT;
+                SetWindowText(hwnd, L"PNT");
+                return 0;
+            }
+            case 51: {
                 editMode = LINE;
                 SetWindowText(hwnd, L"LINE");
                 return 0;
             }
-            case 51: {
+            case 52: {
                 editMode = CIRCLE;
                 SetWindowText(hwnd, L"CIRCLE");
                 return 0;
