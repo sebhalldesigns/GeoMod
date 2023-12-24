@@ -248,9 +248,32 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             int dX = xPos - currentMouseXPos;
             int dY = yPos - currentMouseYPos;
+            
+            gPoint newPoint = {((float) xPos / scale) - originX, ((float) yPos / scale) - originY};
 
             currentMouseXPos = xPos;
             currentMouseYPos = yPos;
+
+            for (gPoint point : points) {
+                if (point.IsNear(newPoint, 10.0)) {
+                    currentMouseXPos = point.x;
+                    currentMouseYPos = point.y;
+                }
+            }
+
+            for (gLine line : lines) {
+                if (line.start.IsNear(newPoint, 10.0)) {
+                    currentMouseXPos = line.start.x;
+                    currentMouseYPos = line.start.y;
+                }
+
+                if (line.end.IsNear(newPoint, 10.0)) {
+                    currentMouseXPos = line.end.x;
+                    currentMouseYPos = line.end.y;
+                }
+            }
+
+            
 
             if (GetAsyncKeyState(VK_MBUTTON)) {
                 

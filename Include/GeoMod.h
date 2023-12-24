@@ -16,12 +16,24 @@
 #ifndef GEOMOD_H
 #define GEOMOD_H
 
+#include <math.h>
+#include <stdio.h>
 //  a point is a simple location in 3D space, with no
 //  regard to size, location, direction etc
 struct gPoint {
     double x;
     double y;
     double z;
+
+    bool IsNear(gPoint nearPoint, double threshold) {
+        double distance = sqrt(pow(x - nearPoint.x, 2) + pow(y - nearPoint.y, 2) + pow(z - nearPoint.z, 2));
+        printf("distance %f\n", distance);
+        if (distance < threshold) {
+            return true;
+        } else {
+            return false;
+        }
+    }
 };
 
 //  a line defines a 1-dimensional region between two points
