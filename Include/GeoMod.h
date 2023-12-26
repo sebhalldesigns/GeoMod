@@ -16,14 +16,12 @@
 #ifndef GEOMOD_H
 #define GEOMOD_H
 
-#define _USE_MATH_DEFINES
-#include <math.h>
+
 #include <stdio.h>
 #include <vector>
 
 #include "BaseTypes.h"
 
-static const double TAU = 2.0*M_PI;
 
 //  a point is a simple location in 3D space, with no
 //  regard to size, location, direction etc

@@ -7,7 +7,7 @@ class gVertex;
 // a one-dimensional line/curve bounded by two vertices
 class gEdge;
 
-// a set of connected edges that can be either open or closed (a chain or a loop)
+// a set ofw connected edges that can be either open or closed (a chain or a loop)
 class gPath;
 
 // an area bounded by a closed path, can be flat or curved
