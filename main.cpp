@@ -219,6 +219,23 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 glEnd();
             }
 
+             for (gCircle circle : circles) {
+                glBegin(GL_POINTS);
+                glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
+                glVertex2d((circle.centre.x + originX) * scale, (circle.centre.y + originY) * scale);
+                glVertex2d((circle.radial.x + originX) * scale, (circle.radial.y + originY) * scale);
+                glEnd();
+
+                glBegin(GL_LINES);
+                glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
+                std::vector<gLine> clines = circle.Approximate(5);
+                for (gLine line : clines) {
+                    glVertex2d((line.start.x + originX) * scale, (line.start.y + originY) * scale);
+                    glVertex2d((line.end.x + originX) * scale, (line.end.y + originY) * scale);
+                }
+                glEnd();
+            } 
+
 
             if (workingPoint.has_value()) {
                 glBegin(GL_POINTS);
@@ -232,6 +249,18 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     glVertex2d((workingPoint.value().x + originX) * scale, (workingPoint.value().y + originY) * scale);
                     glVertex2d((currentMousePos.x + originX) * scale, (currentMousePos.y + originY) * scale);
                     glEnd();
+                } else if (editMode == CIRCLE) {
+                    gCircle tempCircle = { workingPoint.value(), currentMousePos };
+
+                    std::vector<gLine> clines = tempCircle.Approximate((int)((tempCircle.Radius() / 20.0) / scale));
+                    glBegin(GL_LINES);
+                    glColor4f(0.25f, 1.0f, 0.25f, 0.5f);
+                    for (gLine line : clines) {
+                        glVertex2d((line.start.x + originX) * scale, (line.start.y + originY) * scale);
+                        glVertex2d((line.end.x + originX) * scale, (line.end.y + originY) * scale);
+                    }
+
+                    glEnd();
                 }
             }
                 
@@ -240,23 +269,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             glVertex2d((currentMousePos.x + originX) * scale, (currentMousePos.y + originY) * scale);
             glEnd();
 
-            for (int i = 0; i < 10; i++) {
-                gCircle circle;
-                circle.centre = {50.0+(150.0*i), 50.0};
-                circle.radial = {50.0+(150.0*i), 100.0};
-                glBegin(GL_POINTS);
-                glVertex2d((circle.centre.x + originX) * scale, (circle.centre.y + originY) * scale);
-                glVertex2d((circle.radial.x + originX) * scale, (circle.radial.y + originY) * scale);
-                glEnd();
-
-                glBegin(GL_LINES);
-                std::vector<gLine> clines = circle.Approximate(5);
-                for (gLine line : clines) {
-                    glVertex2d((line.start.x + originX) * scale, (line.start.y + originY) * scale);
-                    glVertex2d((line.end.x + originX) * scale, (line.end.y + originY) * scale);
-                }
-                glEnd();
-            } 
+           
             
 
             SwapBuffers(hdc);
@@ -281,18 +294,28 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             
 
             for (gPoint point : points) {
-                if (point.IsNear(newPoint, 10.0)) {
+                if (point.IsNear(newPoint, 10.0/scale)) {
                     currentMousePos = point;
                 }
             }
 
             for (gLine line : lines) {
-                if (line.start.IsNear(newPoint, 10.0)) {
+                if (line.start.IsNear(newPoint, 10.0/scale)) {
                     currentMousePos = line.start;
                 }
 
-                if (line.end.IsNear(newPoint, 10.0)) {
+                if (line.end.IsNear(newPoint, 10.0/scale)) {
                     currentMousePos = line.end;
+                }
+            }
+
+            for (gCircle circle : circles) {
+                if (circle.centre.IsNear(newPoint, 10.0/scale)) {
+                    currentMousePos = circle.centre;
+                }
+
+                if (circle.radial.IsNear(newPoint, 10.0/scale)) {
+                    currentMousePos = circle.radial;
                 }
             }
 
@@ -316,6 +339,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             InvalidateRect(hwnd, NULL, NULL);
         }
         return 0;
+    case WM_VSCROLL: {
+        
+    }
     case WM_LBUTTONDOWN:
             {
                 
