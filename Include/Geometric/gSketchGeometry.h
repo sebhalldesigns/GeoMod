@@ -37,8 +37,8 @@ public:
 enum gSketchContstraintType {
     
     // single point constraints
-    ABSOLUTE, // absolute location - Point, offset
-    RELATIVE, // location derived from another point or an external reference
+    ABSOLUTE_CONSTRAINT, // absolute location - Point, offset
+    RELATIVE_CONSTRAINT, // location derived from another point or an external reference
     
     // line constraints
     ANGLE, // line at an angle, e.g horizontal, vertical
