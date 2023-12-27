@@ -249,6 +249,20 @@ int main(int, char**) {
 
         ImGui::End();
 
+        ImGui::SetNextWindowPos(ImVec2(0, 150)); // Set position to the top-left corner
+        ImGui::SetNextWindowSize(ImVec2(250, viewportSize.y - 150)); // Set width to half of the screen width and height to full screen height
+
+        ImGui::Begin("LeftBarWindow", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
+        if (ImGui::BeginTabBar("LeftTabBar")) {
+            if (ImGui::BeginTabItem("Heirarchy")) {
+
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
+        }
+
+        ImGui::End();
+
         // Rendering
         ImGui::Render();
         glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
@@ -256,7 +270,7 @@ int main(int, char**) {
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-        glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y - 150);
+        glViewport(250, 0, (int)io.DisplaySize.x - 250, (int)io.DisplaySize.y - 150);
 
         float majorGridSize = 100.0f;
         float minorGridSize = 10.0f;
