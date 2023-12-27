@@ -24,4 +24,9 @@
 #include "Geometric/gGeometry.h"
 #include "Geometric/gSketchGeometry.h"
 
+struct gPoint {
+    gFloat x;
+    gFloat y;
+};
+
 #endif // GEOMOD_H

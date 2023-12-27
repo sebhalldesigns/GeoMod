@@ -1,5 +1,4 @@
-// Dear ImGui: standalone example application for SDL2 + OpenGL
-// (SDL is a cross-platform general purpose library for handling windows, inputs, OpenGL/Vulkan/Metal graphics context creation, etc.)
+// Dear ImGui: standalone example application for Win32 + OpenGL 3
 
 // Learn about Dear ImGui:
 // - FAQ                  https://dearimgui.com/faq
@@ -7,19 +6,22 @@
 // - Documentation        https://dearimgui.com/docs (same as your local docs/ folder).
 // - Introduction, links and more at the top of imgui.cpp
 
-#define NO_SDL_GLEXT
+// This is provided for completeness, however it is strongly recommended you use OpenGL with SDL or GLFW.
 #include "../GLEW/GL/glew.h"
 
 #include "imgui/imgui.h"
-#include "imgui/imgui_impl_sdl2.h"
 #include "imgui/imgui_impl_opengl3.h"
-
-#include "SDL.h"
-#include "SDL_opengl.h"
-
-#include <cstdio>
+#include "imgui/imgui_impl_win32.h"
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <windowsx.h>
+#include <GL/GL.h>
+#include <tchar.h>
 #include "../GeoMod/Utility/Files/gFileReader.h"
-
+#include "GeoMod/GeoMod.h"
+#include "GeoMod/GeoMod.h"
 
 enum EditMode {
     SELECT_MODE,
@@ -27,37 +29,60 @@ enum EditMode {
     CIRCLE_MODE
 };
 
+// Data stored per platform window
+struct WGL_WindowData { HDC hDC; };
+
+// Data
+static HGLRC            g_hRC;
+static WGL_WindowData   g_MainWindow;
+static int              g_Width;
+static int              g_Height;
+
+// Forward declarations of helper functions
+bool CreateDeviceWGL(HWND hWnd, WGL_WindowData* data);
+void CleanupDeviceWGL(HWND hWnd, WGL_WindowData* data);
+void ResetDeviceWGL();
+LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+
+bool show_demo_window = true;
+bool show_another_window = false;
+ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+int currentMouseScreenPosX;
+int currentMouseScreenPosY;
+gPoint currentMousePos;
+
+float originX = 0.0f;
+float originY = 0.0f;
+
 // Main code
-int main(int, char**) {
-    // Setup SDL
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
+int main(int, char**)
+{
+    // Create application window
+    //ImGui_ImplWin32_EnableDpiAwareness();
+    WNDCLASSEXW wc = { sizeof(wc), CS_OWNDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"ImGui Example", nullptr };
+    ::RegisterClassExW(&wc);
+    HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Dear ImGui Win32+OpenGL3 Example", WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, nullptr, nullptr, wc.hInstance, nullptr);
+
+    // Initialize OpenGL
+    if (!CreateDeviceWGL(hwnd, &g_MainWindow))
     {
-        printf("Error: %s\n", SDL_GetError());
-        return -1;
+        CleanupDeviceWGL(hwnd, &g_MainWindow);
+        ::DestroyWindow(hwnd);
+        ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
+        return 1;
     }
+    wglMakeCurrent(g_MainWindow.hDC, g_hRC);
 
-    // GL 3.0 + GLSL 130
-    const char* glsl_version = "#version 330";
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    // Show the window
+    ::ShowWindow(hwnd, SW_SHOWDEFAULT);
+    ::UpdateWindow(hwnd);
 
-    // Create window with graphics context
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-
-    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-    SDL_Window* window = SDL_CreateWindow("GeoMod Demo", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1000, 750, window_flags);
-
-    if (window == nullptr) {
-        printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
-        return -1;
-    }
-
-    SDL_GLContext gl_context = SDL_GL_CreateContext(window);
-    SDL_GL_MakeCurrent(window, gl_context);
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
 
     glewExperimental = GL_TRUE;
     int init_res = glewInit();
@@ -65,21 +90,32 @@ int main(int, char**) {
         printf("failed to init glew: %s\n", glewGetErrorString(glewInit()));
     }
 
-    SDL_GL_SetSwapInterval(1); // Enable vsync
-
-    printf("Got to here!\n");
-    // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
+    //ImGui::StyleColorsClassic();
 
     // Setup Platform/Renderer backends
-    ImGui_ImplOpenGL3_Init(glsl_version);
-    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
-    
+    ImGui_ImplWin32_InitForOpenGL(hwnd);
+    ImGui_ImplOpenGL3_Init();
+
+    // Load Fonts
+    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
+    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
+    // - If the file cannot be loaded, the function will return a nullptr. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
+    // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
+    // - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
+    // - Read 'docs/FONTS.md' for more instructions and details.
+    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
+    //io.Fonts->AddFontDefault();
+    //io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
+    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
+    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
+    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
+    //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
+    //IM_ASSERT(font != nullptr);
+
+    // Our state
+      
      
     std::string gridVsSrc = gFileReader::ReadFile("../../gridVs.glsl");
     std::string gridGsSrc = gFileReader::ReadFile("../../gridGs.glsl");
@@ -170,26 +206,28 @@ int main(int, char**) {
 
     // Main loop
     bool done = false;
-
-    while (!done) {
-
-        SDL_Event event;
-        while (SDL_PollEvent(&event))
+    while (!done)
+    {
+        // Poll and handle messages (inputs, window resize, etc.)
+        // See the WndProc() function below for our to dispatch events to the Win32 backend.
+        MSG msg;
+        while (PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
         {
-            ImGui_ImplSDL2_ProcessEvent(&event);
-            if (event.type == SDL_QUIT)
-                done = true;
-            if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window))
+            ::TranslateMessage(&msg);
+            ::DispatchMessage(&msg);
+            if (msg.message == WM_QUIT)
                 done = true;
         }
+        if (done)
+            break;
 
-        // Start the Dear ImGui frame
+
+         // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplSDL2_NewFrame();
+        ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-
-        ImGui::SetNextWindowPos(ImVec2(0, 0)); // Set position to the top-left corner
+       ImGui::SetNextWindowPos(ImVec2(0, 0)); // Set position to the top-left corner
         ImVec2 viewportSize = ImGui::GetMainViewport()->Size;
         ImGui::SetNextWindowSize(ImVec2(viewportSize.x, 150)); // Set width to half of the screen width and height to full screen height
 
@@ -234,7 +272,8 @@ int main(int, char**) {
                 if (editMode == EditMode::CIRCLE_MODE)
                     ImGui::PopStyleColor(); // Active color
                 ImGui::EndChild();
-
+                ImGui::SameLine();
+                 ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Model")) {
@@ -255,7 +294,7 @@ int main(int, char**) {
         ImGui::Begin("LeftBarWindow", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
         if (ImGui::BeginTabBar("LeftTabBar")) {
             if (ImGui::BeginTabItem("Heirarchy")) {
-
+                               
                 ImGui::EndTabItem();
             }
             ImGui::EndTabBar();
@@ -272,17 +311,25 @@ int main(int, char**) {
 
         glViewport(250, 0, (int)io.DisplaySize.x - 250, (int)io.DisplaySize.y - 150);
 
+        float viewportWidth = io.DisplaySize.x - 250;
+        float viewportHeight = io.DisplaySize.y - 150;
+
         float majorGridSize = 100.0f;
         float minorGridSize = 10.0f;
-        float majorGridX = majorGridSize/(io.DisplaySize.x/2.0f);
-        float majorGridY = majorGridSize/(io.DisplaySize.y/2.0f);
-        int numberOfMajorX = (int)(io.DisplaySize.x/majorGridSize) + 1;
-        int numberOfMajorY = (int)(io.DisplaySize.y/majorGridSize) + 1;
+        float majorGridX = majorGridSize/(viewportWidth/2.0f);
+        float majorGridY = majorGridSize/(viewportHeight/2.0f);
+        int numberOfMajorX = (int)(viewportWidth/majorGridSize) + 1;
+        int numberOfMajorY = (int)(viewportHeight/majorGridSize) + 1;
 
-        float minorGridX = minorGridSize/(io.DisplaySize.x/2.0f);
-        float minorGridY = minorGridSize/(io.DisplaySize.y/2.0f);
-        int numberOfMinorX = (int)(io.DisplaySize.x/minorGridSize) + 1;
-        int numberOfMinorY = (int)(io.DisplaySize.y/minorGridSize) + 1;
+        float minorGridX = minorGridSize/(viewportWidth/2.0f);
+        float minorGridY = minorGridSize/(viewportHeight/2.0f);
+        int numberOfMinorX = (int)(viewportWidth/minorGridSize) + 1;
+        int numberOfMinorY = (int)(viewportHeight/minorGridSize) + 1;
+
+        float majorOffsetX = fmod(originX/(viewportWidth/2.0f), majorGridX);
+        float majorOffsetY = -1*fmod(originY/(viewportHeight/2.0f), majorGridY);
+        float minorOffsetX = fmod(originX/(viewportWidth/2.0f), minorGridX);
+        float minorOffsetY = -1*fmod(originY/(viewportHeight/2.0f), minorGridY);
 
         // Ensure a VAO is bound
         glBindVertexArray(horizontalLineVao);
@@ -290,7 +337,7 @@ int main(int, char**) {
 
         glUseProgram(gridProgram);
         // Set uniforms.
-        glUniform1f(glGetUniformLocation(gridProgram, "offset"), 0.0f);
+        glUniform1f(glGetUniformLocation(gridProgram, "offset"), minorOffsetY);
         glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 1);
         glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), minorGridY);
         glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.05f, 0.05f, 0.05f, 1.0f);
@@ -298,7 +345,7 @@ int main(int, char**) {
         glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMinorY);
 
         // Set uniforms.
-        glUniform1f(glGetUniformLocation(gridProgram, "offset"), 0.0f);
+        glUniform1f(glGetUniformLocation(gridProgram, "offset"),minorOffsetX);
         glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 0);
         glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), minorGridX);
         glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.05f, 0.05f, 0.05f, 1.0f);
@@ -306,7 +353,7 @@ int main(int, char**) {
         glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMinorX);
 
         // Set uniforms.
-        glUniform1f(glGetUniformLocation(gridProgram, "offset"), 0.0f);
+        glUniform1f(glGetUniformLocation(gridProgram, "offset"), majorOffsetY);
         glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 1);
         glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), majorGridY);
         glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.1f, 0.1f, 0.1f, 1.0f);
@@ -314,7 +361,7 @@ int main(int, char**) {
         glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMajorY);
 
         // Set uniforms.
-        glUniform1f(glGetUniformLocation(gridProgram, "offset"), 0.0f);
+        glUniform1f(glGetUniformLocation(gridProgram, "offset"), majorOffsetX);
         glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 0);
         glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), majorGridX);
         glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.1f, 0.1f, 0.1f, 1.0f);
@@ -323,17 +370,105 @@ int main(int, char**) {
 
         glBindVertexArray(0);
 
-        SDL_GL_SwapWindow(window);
+        // Present
+        ::SwapBuffers(g_MainWindow.hDC);
+
+   
+       
     }
 
-    // Cleanup
     ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
+    ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
 
-    SDL_GL_DeleteContext(gl_context);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
+    CleanupDeviceWGL(hwnd, &g_MainWindow);
+    wglDeleteContext(g_hRC);
+    ::DestroyWindow(hwnd);
+    ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
 
     return 0;
+}
+
+// Helper functions
+bool CreateDeviceWGL(HWND hWnd, WGL_WindowData* data)
+{
+    HDC hDc = ::GetDC(hWnd);
+    PIXELFORMATDESCRIPTOR pfd = { 0 };
+    pfd.nSize = sizeof(pfd);
+    pfd.nVersion = 1;
+    pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+    pfd.iPixelType = PFD_TYPE_RGBA;
+    pfd.cColorBits = 32;
+
+    const int pf = ::ChoosePixelFormat(hDc, &pfd);
+    if (pf == 0)
+        return false;
+    if (::SetPixelFormat(hDc, pf, &pfd) == FALSE)
+        return false;
+    ::ReleaseDC(hWnd, hDc);
+
+    data->hDC = ::GetDC(hWnd);
+    if (!g_hRC)
+        g_hRC = wglCreateContext(data->hDC);
+    return true;
+}
+
+void CleanupDeviceWGL(HWND hWnd, WGL_WindowData* data)
+{
+    wglMakeCurrent(nullptr, nullptr);
+    ::ReleaseDC(hWnd, data->hDC);
+}
+
+// Forward declare message handler from imgui_impl_win32.cpp
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+// Win32 message handler
+// You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
+// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
+// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
+// Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
+LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
+        return true;
+
+    switch (msg)
+    {
+    case WM_SIZE:
+        if (wParam != SIZE_MINIMIZED)
+        {
+            g_Width = LOWORD(lParam);
+            g_Height = HIWORD(lParam);
+            InvalidateRect(hWnd, NULL, true);
+        }
+        return 0;
+    case WM_SYSCOMMAND:
+        if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
+            return 0;
+        break;
+    case WM_DESTROY:
+        ::PostQuitMessage(0);
+        return 0;
+        case WM_MOUSEMOVE: {
+            int xPos = GET_X_LPARAM(lParam);
+            int yPos = GET_Y_LPARAM(lParam);
+
+            int dX = xPos - currentMouseScreenPosX;
+            int dY = yPos - currentMouseScreenPosY;
+
+            currentMouseScreenPosX = xPos;
+            currentMouseScreenPosY = yPos;
+
+            if (GetAsyncKeyState(VK_MBUTTON)) {
+                
+                originX += (float) dX;
+                originY += (float) dY;
+                
+            }
+            //printf("MOUSE POS %f %f \t ORIGIN %f %f \n", (float)currentMouseScreenPosX, (float)currentMouseScreenPosY, originX, originY);
+            
+        }
+        return 0;
+    }
+    return ::DefWindowProcW(hWnd, msg, wParam, lParam);
 }
