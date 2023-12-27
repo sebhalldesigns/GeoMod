@@ -203,6 +203,9 @@ OPENGL_gl_LIBRARY:STRING=opengl32
 //GLU library for win32
 OPENGL_glu_LIBRARY:STRING=glu32
 
+//The directory containing a CMake configuration file for OpenGL32.
+OpenGL32_DIR:PATH=OpenGL32_DIR-NOTFOUND
+
 
 ########################
 # INTERNAL cache entries

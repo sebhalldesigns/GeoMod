@@ -1,397 +1,200 @@
+// Dear ImGui: standalone example application for SDL2 + OpenGL
+// (SDL is a cross-platform general purpose library for handling windows, inputs, OpenGL/Vulkan/Metal graphics context creation, etc.)
 
-#include <cstdio>
+// Learn about Dear ImGui:
+// - FAQ                  https://dearimgui.com/faq
+// - Getting Started      https://dearimgui.com/getting-started
+// - Documentation        https://dearimgui.com/docs (same as your local docs/ folder).
+// - Introduction, links and more at the top of imgui.cpp
 
-#ifndef UNICODE
-#define UNICODE
-#endif 
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_sdl2.h"
+#include "imgui/imgui_impl_opengl3.h"
+#include <stdio.h>
+#include "SDL.h"
+#include "SDL_opengl.h"
 
-#include <Windows.h>
-#include <windowsx.h>
-#include <gl/GL.h>
-#include <gl/GLU.h>
-#include <vector>
-#include <optional>
-#include <cstdint>
 
-#include "Include/GeoMod.h"
-
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
-HGLRC glRenderContextHandle;
-float width;
-float height;
-int currentMouseScreenPosX;
-int currentMouseScreenPosY;
-gPoint currentMousePos;
-
-float originX = 0.0f;
-float originY = 0.0f;
-
-float scale = 1.0f;
-
-std::vector<gPoint> points;
-std::vector<gLine> lines;
-std::vector<gCircle> circles;
-
-std::optional<gPoint> workingPoint;
-
-enum {
-    NONE,
-    PNT,
-    LINE,
-    CIRCLE,
-} editMode;
-
-int main() {
-
-    printf("hello world\n");
-
-    const wchar_t CLASS_NAME[]  = L"Sample Window Class";
-    
-    WNDCLASS wc = { };
-
-    wc.lpfnWndProc   = WindowProc;
-    wc.hInstance     = GetModuleHandle(nullptr);
-    wc.lpszClassName = CLASS_NAME;
-    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-
-    RegisterClass(&wc);
-    // Create the window.
-
-    HWND hwnd = CreateWindowEx(
-        0,                              // Optional window styles.
-        CLASS_NAME,                     // Window class
-        L"Learn to Program Windows",    // Window text
-        WS_OVERLAPPEDWINDOW,            // Window style
-
-        // Size and position
-        800, 600, CW_USEDEFAULT, CW_USEDEFAULT,
-
-        NULL,       // Parent window    
-        NULL,       // Menu
-        GetModuleHandle(nullptr),  // Instance handle
-        NULL        // Additional application data
-        );
-
-    if (hwnd == NULL)
+// Main code
+int main(int, char**)
+{
+    // Setup SDL
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
     {
-        return 0;
+        printf("Error: %s\n", SDL_GetError());
+        return -1;
     }
 
-    PIXELFORMATDESCRIPTOR pfd = {
-        sizeof(PIXELFORMATDESCRIPTOR),
-        1,
-        PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
-        PFD_TYPE_RGBA,
-        24, // bit depth
-        0, 0, 0, 0, 0, 0,
-        0,
-        0,
-        0,
-        0, 0, 0, 0,
-        16, // depth buffer
-        0, // stencil buffer
-        0,
-        PFD_MAIN_PLANE,
-        0,
-        0, 0, 0
-    };
+    // Decide GL+GLSL versions
+#if defined(IMGUI_IMPL_OPENGL_ES2)
+    // GL ES 2.0 + GLSL 100
+    const char* glsl_version = "#version 100";
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#elif defined(__APPLE__)
+    // GL 3.2 Core + GLSL 150
+    const char* glsl_version = "#version 150";
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+#else
+    // GL 3.0 + GLSL 130
+    const char* glsl_version = "#version 130";
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#endif
 
-    HDC hdc = GetDC(hwnd);
-    int pixelFormat = ChoosePixelFormat(hdc, &pfd);
-    SetPixelFormat(hdc, pixelFormat, &pfd);
+    // From 2.0.18: Enable native IME.
+#ifdef SDL_HINT_IME_SHOW_UI
+    SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
+#endif
 
-    glRenderContextHandle = wglCreateContext(hdc);
-    
-    wglMakeCurrent(hdc, glRenderContextHandle);
-    glViewport(0, 0, 800, 600);
-    
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-
-    glEnable(GL_BLEND);  
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
-    glEnable(GL_TEXTURE_2D);   
-    glEnable(GL_POINT_SMOOTH); 
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // disable byte-alignment restriction for text
-
-    ReleaseDC(hwnd, hdc);
-
-    ShowWindow(hwnd, SW_SHOW);
-
-    MSG msg = { };
-    while (GetMessage(&msg, NULL, 0, 0) > 0)
+    // Create window with graphics context
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    SDL_Window* window = SDL_CreateWindow("Dear ImGui SDL2+OpenGL3 example", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
+    if (window == nullptr)
     {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+        printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
+        return -1;
     }
+
+    SDL_GLContext gl_context = SDL_GL_CreateContext(window);
+    SDL_GL_MakeCurrent(window, gl_context);
+    SDL_GL_SetSwapInterval(1); // Enable vsync
+
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsLight();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
+    ImGui_ImplOpenGL3_Init(glsl_version);
+
+    // Load Fonts
+    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
+    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
+    // - If the file cannot be loaded, the function will return a nullptr. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
+    // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
+    // - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
+    // - Read 'docs/FONTS.md' for more instructions and details.
+    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
+    // - Our Emscripten build process allows embedding fonts to be accessible at runtime from the "fonts/" folder. See Makefile.emscripten for details.
+    //io.Fonts->AddFontDefault();
+    //io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
+    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
+    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
+    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
+    //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
+    //IM_ASSERT(font != nullptr);
+
+    // Our state
+    bool show_demo_window = true;
+    bool show_another_window = false;
+    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+    // Main loop
+    bool done = false;
+#ifdef __EMSCRIPTEN__
+    // For an Emscripten build we are disabling file-system access, so let's not attempt to do a fopen() of the imgui.ini file.
+    // You may manually call LoadIniSettingsFromMemory() to load settings from your own storage.
+    io.IniFilename = nullptr;
+    EMSCRIPTEN_MAINLOOP_BEGIN
+#else
+    while (!done)
+#endif
+    {
+        // Poll and handle events (inputs, window resize, etc.)
+        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
+        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
+        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
+        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
+        SDL_Event event;
+        while (SDL_PollEvent(&event))
+        {
+            ImGui_ImplSDL2_ProcessEvent(&event);
+            if (event.type == SDL_QUIT)
+                done = true;
+            if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window))
+                done = true;
+        }
+
+        // Start the Dear ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+
+        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
+        if (show_demo_window)
+            ImGui::ShowDemoWindow(&show_demo_window);
+
+        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
+        {
+            static float f = 0.0f;
+            static int counter = 0;
+
+            ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+            ImGui::Checkbox("Another Window", &show_another_window);
+
+            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+
+            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+                counter++;
+            ImGui::SameLine();
+            ImGui::Text("counter = %d", counter);
+
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+            ImGui::End();
+        }
+
+        // 3. Show another simple window.
+        if (show_another_window)
+        {
+            ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+            ImGui::Text("Hello from another window!");
+            if (ImGui::Button("Close Me"))
+                show_another_window = false;
+            ImGui::End();
+        }
+
+        // Rendering
+        ImGui::Render();
+        glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
+        glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
+        glClear(GL_COLOR_BUFFER_BIT);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        SDL_GL_SwapWindow(window);
+    }
+#ifdef __EMSCRIPTEN__
+    EMSCRIPTEN_MAINLOOP_END;
+#endif
+
+    // Cleanup
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+
+    SDL_GL_DeleteContext(gl_context);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 
     return 0;
-}
-
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    switch (uMsg)
-    {
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        return 0;
-    case WM_SIZE: {
-        width = (float)LOWORD(lParam);
-        height = (float)HIWORD(lParam);
-        InvalidateRect(hwnd, NULL, NULL);
-        return 0;
-    }
-
-    case WM_PAINT:
-        {
-
-            //printf("WM PAINT %f %f\n", width, height);
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hwnd, &ps);
-
-            // All painting occurs here, between BeginPaint and EndPaint.
-
-            wglMakeCurrent(hdc, glRenderContextHandle);
-            glViewport(0, 0, (int)width, (int)height);
-
-            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT);
-
-            // rendering happens here
-            
-            glMatrixMode(GL_PROJECTION); // Switch to projection matrix mode
-            glLoadIdentity(); // Reset the projection matrix
-            
-            // Set up a perspective projection matrix
-            // Parameters: field of view, aspect ratio, near plane, far plane
-            //gluPerspective(45.0, width / height, 0.1, 100.0);
-            gluOrtho2D(0, width, height, 0); // Set these values to define your 2D plane
-
-            glMatrixMode(GL_MODELVIEW); // Switch back to modelview matrix mode
-
-            float gridScale = 100.0f * scale;
-
-            glColor4f(1.0f, 1.0f, 1.0f, 0.25f);
-            // Horizontal lines
-            for(float i = originY; i <= height; i += gridScale) {
-                glBegin(GL_LINES);
-                    glVertex2f(0.0f, i);
-                    glVertex2f(width, i);
-                glEnd();
-            }
-
-            // Vertical lines
-            for(float i = originX; i <= width; i += gridScale) {
-                glBegin(GL_LINES);
-                    glVertex2f(i, 0.0f);
-                    glVertex2f(i, height);
-                glEnd();
-            }
-            // end of rendering
-
-            
-            glPointSize(7.5f);
-            glLineWidth(2.5f);
-
-            
-            for (gPoint point : points) {
-                glBegin(GL_POINTS);
-                glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
-                glVertex2d((point.x + originX) * scale, (point.y + originY) * scale);
-                glEnd();
-            }
-
-            for (gLine line : lines) {
-                glBegin(GL_LINES);
-                glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
-                glVertex2d((line.start.x + originX) * scale, (line.start.y + originY) * scale);
-                glVertex2d((line.end.x + originX) * scale, (line.end.y + originY) * scale);
-                glEnd();
-            }
-
-             for (gLine line : lines) {
-                glBegin(GL_POINTS);
-                glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
-                glVertex2d((line.start.x + originX) * scale, (line.start.y + originY) * scale);
-                glVertex2d((line.end.x + originX) * scale, (line.end.y + originY) * scale);
-                glEnd();
-            }
-
-             for (gCircle circle : circles) {
-                glBegin(GL_POINTS);
-                glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
-                glVertex2d((circle.centre.x + originX) * scale, (circle.centre.y + originY) * scale);
-                glVertex2d((circle.radial.x + originX) * scale, (circle.radial.y + originY) * scale);
-                glEnd();
-
-                glBegin(GL_LINES);
-                glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
-                std::vector<gLine> clines = circle.Approximate(5);
-                for (gLine line : clines) {
-                    glVertex2d((line.start.x + originX) * scale, (line.start.y + originY) * scale);
-                    glVertex2d((line.end.x + originX) * scale, (line.end.y + originY) * scale);
-                }
-                glEnd();
-            } 
-
-
-            if (workingPoint.has_value()) {
-                glBegin(GL_POINTS);
-                glColor4f(0.25f, 1.0f, 0.25f, 0.5f);
-                glVertex2d((workingPoint.value().x + originX) * scale, (workingPoint.value().y + originY) * scale);
-                glEnd();
-
-                if (editMode == LINE) {
-                    glBegin(GL_LINES);
-                    glColor4f(0.25f, 1.0f, 0.25f, 0.5f);
-                    glVertex2d((workingPoint.value().x + originX) * scale, (workingPoint.value().y + originY) * scale);
-                    glVertex2d((currentMousePos.x + originX) * scale, (currentMousePos.y + originY) * scale);
-                    glEnd();
-                } else if (editMode == CIRCLE) {
-                    gCircle tempCircle = { workingPoint.value(), currentMousePos };
-
-                    std::vector<gLine> clines = tempCircle.Approximate((int)((tempCircle.Radius() / 20.0) / scale));
-                    glBegin(GL_LINES);
-                    glColor4f(0.25f, 1.0f, 0.25f, 0.5f);
-                    for (gLine line : clines) {
-                        glVertex2d((line.start.x + originX) * scale, (line.start.y + originY) * scale);
-                        glVertex2d((line.end.x + originX) * scale, (line.end.y + originY) * scale);
-                    }
-
-                    glEnd();
-                }
-            }
-                
-            glColor4f(0.25f, 1.0f, 0.25f, 0.5f);
-            glBegin(GL_POINTS);
-            glVertex2d((currentMousePos.x + originX) * scale, (currentMousePos.y + originY) * scale);
-            glEnd();
-
-           
-            
-
-            SwapBuffers(hdc);
-            EndPaint(hwnd, &ps);
-        }
-        return 0;
-     case WM_MOUSEMOVE: {
-            int xPos = GET_X_LPARAM(lParam);
-            int yPos = GET_Y_LPARAM(lParam);
-
-            int dX = xPos - currentMouseScreenPosX;
-            int dY = yPos - currentMouseScreenPosY;
-
-            currentMouseScreenPosX = xPos;
-            currentMouseScreenPosY = yPos;
-
-            
-            
-            gPoint newPoint = {((float) xPos / scale) - originX, ((float) yPos / scale) - originY};
-            
-            currentMousePos = newPoint;
-            
-
-            for (gPoint point : points) {
-                if (point.IsNear(newPoint, 10.0/scale)) {
-                    currentMousePos = point;
-                }
-            }
-
-            for (gLine line : lines) {
-                if (line.start.IsNear(newPoint, 10.0/scale)) {
-                    currentMousePos = line.start;
-                }
-
-                if (line.end.IsNear(newPoint, 10.0/scale)) {
-                    currentMousePos = line.end;
-                }
-            }
-
-            for (gCircle circle : circles) {
-                if (circle.centre.IsNear(newPoint, 10.0/scale)) {
-                    currentMousePos = circle.centre;
-                }
-
-                if (circle.radial.IsNear(newPoint, 10.0/scale)) {
-                    currentMousePos = circle.radial;
-                }
-            }
-
-            
-
-            if (GetAsyncKeyState(VK_MBUTTON)) {
-                
-                originX += (float) dX;
-                originY += (float) dY;
-                
-            }
-            InvalidateRect(hwnd, NULL, NULL);
-            //printf("MOUSE POS %f %f\n", (float)currentMouseXPos, (float)currentMouseYPos);
-        }
-        return 0;
-    case WM_MOUSEWHEEL: {
-            int zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
-            
-            scale *= (1.0f + (float)zDelta / 1000.0f);
-            printf("MOUSE SCROLL %f\n", scale);
-            InvalidateRect(hwnd, NULL, NULL);
-        }
-        return 0;
-    case WM_VSCROLL: {
-        
-    }
-    case WM_LBUTTONDOWN:
-            {
-                
-                if (editMode == PNT) {
-                    points.push_back(currentMousePos);
-                } else if (editMode == LINE || editMode == CIRCLE) {
-                    if (!workingPoint.has_value()) {
-                        workingPoint = currentMousePos;
-                    } else {
-                        if (editMode == LINE) {
-                            lines.push_back({workingPoint.value(), currentMousePos});
-                            workingPoint.reset();
-                        } else {
-                            circles.push_back({workingPoint.value(), currentMousePos});
-                            workingPoint.reset();
-                        }
-                    }
-                }
-    	
-                
-            }
-            return 0;
-    
-    case WM_CHAR:{
-        uint64_t character = wParam;
-        printf("WMCHAR %c %llu\n", character, character);
-        switch (character) {
-            case 49: {
-                editMode = NONE;
-                SetWindowText(hwnd, L"NONE");
-                return 0;
-            }   
-            case 50: {
-                editMode = PNT;
-                SetWindowText(hwnd, L"PNT");
-                return 0;
-            }
-            case 51: {
-                editMode = LINE;
-                SetWindowText(hwnd, L"LINE");
-                return 0;
-            }
-            case 52: {
-                editMode = CIRCLE;
-                SetWindowText(hwnd, L"CIRCLE");
-                return 0;
-            }
-        }
-        return 0;
-    }
-    }
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }

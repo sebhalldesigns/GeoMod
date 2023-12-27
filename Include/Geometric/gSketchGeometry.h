@@ -17,8 +17,8 @@ struct gSketchOffset {
 class gSketchLine {
 public:
     
-    std::shared_ptr<gSketchPoint> start;
-    std::shared_ptr<gSketchPoint> end;
+    gSketchPoint start;
+    gSketchPoint end;
 
 };
 
@@ -26,7 +26,7 @@ public:
 class gSketchArc {
 public:
     
-    std::shared_ptr<gSketchPoint> centre;
+    gSketchPoint centre;
     gFloat radius;
     gFloat angleStart;
     gFloat angleDuration;
