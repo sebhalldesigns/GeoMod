@@ -7,12 +7,19 @@
 // - Documentation        https://dearimgui.com/docs (same as your local docs/ folder).
 // - Introduction, links and more at the top of imgui.cpp
 
+#define NO_SDL_GLEXT
+#include "../GLEW/GL/glew.h"
+
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_sdl2.h"
 #include "imgui/imgui_impl_opengl3.h"
-#include <stdio.h>
+
 #include "SDL.h"
 #include "SDL_opengl.h"
+
+#include <cstdio>
+#include "../GeoMod/Utility/Files/gFileReader.h"
+
 
 enum EditMode {
     SELECT_MODE,
@@ -51,8 +58,16 @@ int main(int, char**) {
 
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
     SDL_GL_MakeCurrent(window, gl_context);
+
+    glewExperimental = GL_TRUE;
+    int init_res = glewInit();
+    if(init_res != GLEW_OK) {
+        printf("failed to init glew: %s\n", glewGetErrorString(glewInit()));
+    }
+
     SDL_GL_SetSwapInterval(1); // Enable vsync
 
+    printf("Got to here!\n");
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -62,9 +77,93 @@ int main(int, char**) {
     ImGui::StyleColorsDark();
 
     // Setup Platform/Renderer backends
-    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     ImGui_ImplOpenGL3_Init(glsl_version);
+    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
+    
+     
+    std::string gridVsSrc = gFileReader::ReadFile("../../gridVs.glsl");
+    std::string gridGsSrc = gFileReader::ReadFile("../../gridGs.glsl");
+    std::string gridFsSrc = gFileReader::ReadFile("../../gridFs.glsl");
 
+    const char* gridVsRaw = gridVsSrc.c_str();
+    const char* gridGsRaw = gridGsSrc.c_str();
+    const char* gridFsRaw = gridFsSrc.c_str();
+
+    unsigned int gridVs, gridGs, gridFs, gridProgram;
+
+    gridVs = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(gridVs, 1, &gridVsRaw, NULL);
+    glCompileShader(gridVs);
+    // Check for shader compile errors
+    int success;
+    char infoLog[512];
+    glGetShaderiv(gridVs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(gridVs, 512, NULL, infoLog);
+        printf("error: shader compilation failed: %s\n", &infoLog);
+    }
+
+    gridGs = glCreateShader(GL_GEOMETRY_SHADER);
+    glShaderSource(gridGs, 1, &gridGsRaw, NULL);
+    glCompileShader(gridGs);
+
+    // Check for shader compile errors
+    glGetShaderiv(gridGs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(gridGs, 512, NULL, infoLog);
+        printf("error: shader compilation failed: %s\n", &infoLog);
+    }
+
+    gridFs = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(gridFs, 1, &gridFsRaw, NULL);
+    glCompileShader(gridFs);
+    
+    // Check for shader compile errors
+    glGetShaderiv(gridFs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(gridFs, 512, NULL, infoLog);
+        printf("error: shader compilation failed: %s\n", &infoLog);
+    }
+
+    gridProgram = glCreateProgram();
+
+    glAttachShader(gridProgram, gridVs);
+    //glAttachShader(gridProgram, gridGs);
+    glAttachShader(gridProgram, gridFs);
+
+    // Link the program
+    glLinkProgram(gridProgram);
+
+    // Delete the shader objects once linked
+    glDeleteShader(gridVs);
+    //glDeleteShader(gridGs);
+    glDeleteShader(gridFs);
+
+    // Check for linking errors
+    glGetProgramiv(gridProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(gridProgram, 512, NULL, infoLog);
+        printf("error: shader linking failed: %s\n", &infoLog);
+    }
+
+    GLuint horizontalLineVao, horizontalLineVbo;
+    glGenVertexArrays(1, &horizontalLineVao);
+    glGenBuffers(1, &horizontalLineVbo);
+
+    float horizontalLineVertices[] = { -1.0f, -1.0f, 1.0f, -1.0f }; // Two endpoints of the line (x1, y1, x2, y2)
+
+    glBindVertexArray(horizontalLineVao);
+    glBindBuffer(GL_ARRAY_BUFFER, horizontalLineVbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(horizontalLineVertices), horizontalLineVertices, GL_STATIC_DRAW);
+
+    // Vertex attribute for the line endpoints
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    
     // Our state
     EditMode editMode = EditMode::SELECT_MODE;
 
@@ -104,6 +203,8 @@ int main(int, char**) {
                 if (editMode == EditMode::SELECT_MODE)
                     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f)); // Active color
                 if (ImGui::Button("Select")) {
+                    if (editMode == EditMode::SELECT_MODE)
+                        ImGui::PopStyleColor(); // Active color
                     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f)); // Active color
                     editMode = EditMode::SELECT_MODE;
                 }
@@ -113,6 +214,8 @@ int main(int, char**) {
                 if (editMode == EditMode::LINE_MODE)
                     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f)); // Active color
                 if (ImGui::Button("Line")) {
+                    if (editMode == EditMode::LINE_MODE)
+                        ImGui::PopStyleColor(); // Active color
                     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f)); // Active color
                     editMode = EditMode::LINE_MODE;
                 }
@@ -123,6 +226,8 @@ int main(int, char**) {
                 if (editMode == EditMode::CIRCLE_MODE)
                     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f)); // Active color
                 if (ImGui::Button("Circle")) {
+                    if (editMode == EditMode::CIRCLE_MODE)
+                        ImGui::PopStyleColor(); // Active color
                     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f)); // Active color
                     editMode = EditMode::CIRCLE_MODE;
                 }
@@ -150,6 +255,60 @@ int main(int, char**) {
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y - 150);
+
+        float majorGridSize = 100.0f;
+        float minorGridSize = 10.0f;
+        float majorGridX = majorGridSize/(io.DisplaySize.x/2.0f);
+        float majorGridY = majorGridSize/(io.DisplaySize.y/2.0f);
+        int numberOfMajorX = (int)(io.DisplaySize.x/majorGridSize) + 1;
+        int numberOfMajorY = (int)(io.DisplaySize.y/majorGridSize) + 1;
+
+        float minorGridX = minorGridSize/(io.DisplaySize.x/2.0f);
+        float minorGridY = minorGridSize/(io.DisplaySize.y/2.0f);
+        int numberOfMinorX = (int)(io.DisplaySize.x/minorGridSize) + 1;
+        int numberOfMinorY = (int)(io.DisplaySize.y/minorGridSize) + 1;
+
+        // Ensure a VAO is bound
+        glBindVertexArray(horizontalLineVao);
+
+
+        glUseProgram(gridProgram);
+        // Set uniforms.
+        glUniform1f(glGetUniformLocation(gridProgram, "offset"), 0.0f);
+        glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 1);
+        glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), minorGridY);
+        glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.05f, 0.05f, 0.05f, 1.0f);
+        // Draw grid.
+        glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMinorY);
+
+        // Set uniforms.
+        glUniform1f(glGetUniformLocation(gridProgram, "offset"), 0.0f);
+        glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 0);
+        glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), minorGridX);
+        glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.05f, 0.05f, 0.05f, 1.0f);
+        // Draw grid.
+        glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMinorX);
+
+        // Set uniforms.
+        glUniform1f(glGetUniformLocation(gridProgram, "offset"), 0.0f);
+        glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 1);
+        glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), majorGridY);
+        glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.1f, 0.1f, 0.1f, 1.0f);
+        // Draw grid.
+        glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMajorY);
+
+        // Set uniforms.
+        glUniform1f(glGetUniformLocation(gridProgram, "offset"), 0.0f);
+        glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 0);
+        glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), majorGridX);
+        glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.1f, 0.1f, 0.1f, 1.0f);
+        // Draw grid.
+        glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMajorX);
+
+        glBindVertexArray(0);
+
         SDL_GL_SwapWindow(window);
     }
 
