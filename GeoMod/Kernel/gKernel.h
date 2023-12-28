@@ -1,6 +1,7 @@
 #ifndef GKERNEL_H
 #define GKERNEL_H
 
+#include "gKernelServer.h"
 #include "../Debug/gLog.h"
 
 #include <cstdint>
@@ -31,11 +32,19 @@ public:
 
         uint64_t elapsedTime = 0;
 
-        // Main loop of your application
-        while (!exitFlag.load()) {
-            
+        if (!gKernelServer::Init("C:\\GeoMod\\server.socket", 2023)) {
+            return -1;
         }
 
+        // Main loop of your application
+        while (!exitFlag.load()) {
+            std::optional<std::string> response = gKernelServer::Poll();
+            if (response.has_value()) {
+                gLog::Info("Server recieved '%s'", response.value().c_str());
+            }
+        }
+
+        gKernelServer::Close();
         gLog::Info("Shutdown complete. GeoMod out.");
 
         return 0;

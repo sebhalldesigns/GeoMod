@@ -5,9 +5,11 @@
     #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
     #include <winsock2.h>
+    #include <afunix.h>
     #include <ws2tcpip.h>
     #include <cstdio>
     #include <cstdlib>
+    #include <filesystem>
 #endif // WIN32
 
 #include "../Debug/gLog.h"
@@ -21,16 +23,31 @@ const char* LISTEN_PORT_NO = "2023";
 
 class gKernelServer {
 
-    static SOCKET sock;
-    static struct sockaddr_in addr;
+    static SOCKET serverSocket;
+    static struct sockaddr_un serverAddress;
+    static std::string path;
 
 public:
 
     gKernelServer() {
-        sock = INVALID_SOCKET;
+        serverSocket = INVALID_SOCKET;
     }
 
-    bool start(const std::string& ip, int port) {
+    static bool Init(std::string socketPath, int port) {
+        path = socketPath;
+        gLog::Info("checking if '%s' exists", path.c_str());
+
+        DWORD fileAttr = GetFileAttributesA(path.c_str());
+        if (fileAttr != INVALID_FILE_ATTRIBUTES) {
+            // socket file exists already so try to delete
+            if (!DeleteFileA(path.c_str())) {
+                gLog::Error("Error deleting socket file");
+                return false; // File failed to delete
+            } else {
+                gLog::Info("Successfully deleted socket file");
+            }
+        }
+
         WSADATA wsaData;
         int result = WSAStartup(MAKEWORD(2,2), &wsaData);
         if (result != 0) {
@@ -38,55 +55,69 @@ public:
             return false;
         }
 
-        sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (sock == INVALID_SOCKET) {
+        serverSocket = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (serverSocket == INVALID_SOCKET) {
             gLog::Error("Error at socket(): %d", WSAGetLastError());
             WSACleanup();
             return false;
         }
 
         u_long mode = 1;  // Enable non-blocking mode
-        result = ioctlsocket(sock, FIONBIO, &mode);
+        result = ioctlsocket(serverSocket, FIONBIO, &mode);
         if (result == SOCKET_ERROR) {
             gLog::Error("ioctlsocket failed with error: %d", WSAGetLastError());
-            closesocket(sock);
+            closesocket(serverSocket);
             WSACleanup();
             return false;
         }
 
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = inet_addr(ip.c_str());
-        addr.sin_port = htons(static_cast<u_short>(port));
+        serverAddress.sun_family = AF_UNIX;
+        strncpy(serverAddress.sun_path, socketPath.c_str(), sizeof(serverAddress.sun_path) - 1);
 
-        result = bind(sock, reinterpret_cast<SOCKADDR*>(&addr), sizeof(addr));
+        result = bind(serverSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress));
         if (result == SOCKET_ERROR) {
             gLog::Error("bind failed with error: %d", WSAGetLastError());
-            closesocket(sock);
+            closesocket(serverSocket);
             WSACleanup();
             return false;
         }
 
-        result = listen(sock, SOMAXCONN);
+        result = listen(serverSocket, SOMAXCONN);
         if (result == SOCKET_ERROR) {
             gLog::Error("listen failed with error: %d", WSAGetLastError());
-            closesocket(sock);
+            closesocket(serverSocket);
             WSACleanup();
             return false;
         }
 
+        gLog::Info("Started server successfully");
         return true;
     }
 
-    void stop() {
-        if (sock != INVALID_SOCKET) {
-            closesocket(sock);
-            sock = INVALID_SOCKET;
+    static void Close() {
+        if (serverSocket != INVALID_SOCKET) {
+            closesocket(serverSocket);
+            serverSocket = INVALID_SOCKET;
         }
         WSACleanup();
+
+        gLog::Info("checking if '%s' exists", path.c_str());
+
+        DWORD fileAttr = GetFileAttributesA(path.c_str());
+        if (fileAttr != INVALID_FILE_ATTRIBUTES) {
+            // socket file exists already so try to delete
+            if (!DeleteFileA(path.c_str())) {
+                gLog::Error("Error deleting socket file");
+            } else {
+                gLog::Info("Successfully deleted socket file");
+            }
+        }
+
+        gLog::Info("Stopped server successfully");
     }
 
-    std::optional<std::string> poll() {
-        SOCKET clientSock = accept(sock, nullptr, nullptr);
+    static std::optional<std::string> Poll() {
+        SOCKET clientSock = accept(serverSocket, nullptr, nullptr);
         if (clientSock == INVALID_SOCKET) {
             if (WSAGetLastError() != WSAEWOULDBLOCK) {
                 gLog::Error("accept failed with error: %d", WSAGetLastError());
@@ -110,5 +141,8 @@ public:
     }
 };
 
+SOCKET gKernelServer::serverSocket;
+struct sockaddr_un gKernelServer::serverAddress;
+std::string gKernelServer::path;
 
 #endif // GKERNELSERVER_H
