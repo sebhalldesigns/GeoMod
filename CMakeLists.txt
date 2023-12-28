@@ -17,4 +17,4 @@ find_package(OpenGL REQUIRED)
 
 target_include_directories(GeoMod PUBLIC "SDL/")
 target_link_libraries(GeoMod PUBLIC OpenGL::GL)
-target_link_libraries(GeoMod PUBLIC ${CMAKE_SOURCE_DIR}/lib/SDL2.lib ${CMAKE_SOURCE_DIR}/lib/SDL2main.lib ${CMAKE_SOURCE_DIR}/lib/glew32.lib)
+target_link_libraries(GeoMod PUBLIC ${CMAKE_SOURCE_DIR}/lib/glew32.lib)
