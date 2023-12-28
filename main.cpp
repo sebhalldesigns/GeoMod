@@ -289,9 +289,9 @@ int main(int, char**)
             glBindVertexArray(0);
         }*/
         
-            
 
 
+        
         // Present
         ::SwapBuffers(g_MainWindow.hDC);
 
