@@ -2,9 +2,9 @@
 
 ## Overview 
 
-A GEOmetric MODel Kernel
+GEOmetric MODular Kernel
 
-GeoMod is a self-contained, fully cross-platform kernel
+GeoMod is a self-contained, fully cross-platform modular kernel
 for use in any environment that handles 3D and 2D graphics.
 It is designed around a modular architecture that results 
 in a highly flexible, configurable and powerful system.
