@@ -21,13 +21,7 @@
 #include <tchar.h>
 #include "../GeoMod/Utility/Files/gFileReader.h"
 #include "GeoMod/GeoMod.h"
-#include "GeoMod/GeoMod.h"
-
-enum EditMode {
-    SELECT_MODE,
-    LINE_MODE,
-    CIRCLE_MODE
-};
+#include "GeoMod/Developer/dGui.h"
 
 // Data stored per platform window
 struct WGL_WindowData { HDC hDC; };
@@ -199,9 +193,6 @@ int main(int, char**)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    
-    // Our state
-    EditMode editMode = EditMode::SELECT_MODE;
 
 
     // Main loop
@@ -225,83 +216,8 @@ int main(int, char**)
          // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplWin32_NewFrame();
-        ImGui::NewFrame();
 
-       ImGui::SetNextWindowPos(ImVec2(0, 0)); // Set position to the top-left corner
-        ImVec2 viewportSize = ImGui::GetMainViewport()->Size;
-        ImGui::SetNextWindowSize(ImVec2(viewportSize.x, 150)); // Set width to half of the screen width and height to full screen height
-
-        // Create the window
-        ImGui::Begin("TabBarWindow", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
-        if (ImGui::BeginTabBar("TabBar")) {
-            if (ImGui::BeginTabItem("Sketch")) {
-                
-                ImGui::BeginChild("EditMode", ImVec2(150.0f, 110.0f), ImGuiChildFlags_Border | ImGuiChildFlags_FrameStyle);
-                ImGui::Text("Edit Mode");
-                if (editMode == EditMode::SELECT_MODE)
-                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f)); // Active color
-                if (ImGui::Button("Select")) {
-                    if (editMode == EditMode::SELECT_MODE)
-                        ImGui::PopStyleColor(); // Active color
-                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f)); // Active color
-                    editMode = EditMode::SELECT_MODE;
-                }
-                if (editMode == EditMode::SELECT_MODE)
-                    ImGui::PopStyleColor(); // Active color
-
-                if (editMode == EditMode::LINE_MODE)
-                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f)); // Active color
-                if (ImGui::Button("Line")) {
-                    if (editMode == EditMode::LINE_MODE)
-                        ImGui::PopStyleColor(); // Active color
-                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f)); // Active color
-                    editMode = EditMode::LINE_MODE;
-                }
-                if (editMode == EditMode::LINE_MODE)
-                    ImGui::PopStyleColor(); // Active color
-
-
-                if (editMode == EditMode::CIRCLE_MODE)
-                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f)); // Active color
-                if (ImGui::Button("Circle")) {
-                    if (editMode == EditMode::CIRCLE_MODE)
-                        ImGui::PopStyleColor(); // Active color
-                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f)); // Active color
-                    editMode = EditMode::CIRCLE_MODE;
-                }
-                if (editMode == EditMode::CIRCLE_MODE)
-                    ImGui::PopStyleColor(); // Active color
-                ImGui::EndChild();
-                ImGui::SameLine();
-                 ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Model")) {
-                // Content for Tab 2
-                ImGui::Text("This is Tab 2");
-                ImGui::EndTabItem();
-            }
-            // Add more tabs as needed
-            ImGui::EndTabBar();
-        }
-
-
-        ImGui::End();
-
-        ImGui::SetNextWindowPos(ImVec2(0, 150)); // Set position to the top-left corner
-        ImGui::SetNextWindowSize(ImVec2(250, viewportSize.y - 150)); // Set width to half of the screen width and height to full screen height
-
-        ImGui::Begin("LeftBarWindow", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
-        if (ImGui::BeginTabBar("LeftTabBar")) {
-            if (ImGui::BeginTabItem("Heirarchy")) {
-                               
-                ImGui::EndTabItem();
-            }
-            ImGui::EndTabBar();
-        }
-
-        ImGui::End();
-
+        dGui(io);
         // Rendering
         ImGui::Render();
         glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
@@ -314,61 +230,67 @@ int main(int, char**)
         float viewportWidth = io.DisplaySize.x - 250;
         float viewportHeight = io.DisplaySize.y - 150;
 
-        float majorGridSize = 100.0f;
-        float minorGridSize = 10.0f;
-        float majorGridX = majorGridSize/(viewportWidth/2.0f);
-        float majorGridY = majorGridSize/(viewportHeight/2.0f);
-        int numberOfMajorX = (int)(viewportWidth/majorGridSize) + 1;
-        int numberOfMajorY = (int)(viewportHeight/majorGridSize) + 1;
+        /*{
 
-        float minorGridX = minorGridSize/(viewportWidth/2.0f);
-        float minorGridY = minorGridSize/(viewportHeight/2.0f);
-        int numberOfMinorX = (int)(viewportWidth/minorGridSize) + 1;
-        int numberOfMinorY = (int)(viewportHeight/minorGridSize) + 1;
+            float majorGridSize = 100.0f;
+            float minorGridSize = 10.0f;
+            float majorGridX = majorGridSize/(viewportWidth/2.0f);
+            float majorGridY = majorGridSize/(viewportHeight/2.0f);
+            int numberOfMajorX = (int)(viewportWidth/majorGridSize) + 1;
+            int numberOfMajorY = (int)(viewportHeight/majorGridSize) + 1;
 
-        float majorOffsetX = fmod(originX/(viewportWidth/2.0f), majorGridX);
-        float majorOffsetY = -1*fmod(originY/(viewportHeight/2.0f), majorGridY);
-        float minorOffsetX = fmod(originX/(viewportWidth/2.0f), minorGridX);
-        float minorOffsetY = -1*fmod(originY/(viewportHeight/2.0f), minorGridY);
+            float minorGridX = minorGridSize/(viewportWidth/2.0f);
+            float minorGridY = minorGridSize/(viewportHeight/2.0f);
+            int numberOfMinorX = (int)(viewportWidth/minorGridSize) + 1;
+            int numberOfMinorY = (int)(viewportHeight/minorGridSize) + 1;
 
-        // Ensure a VAO is bound
-        glBindVertexArray(horizontalLineVao);
+            float majorOffsetX = fmod(originX/(viewportWidth/2.0f), majorGridX);
+            float majorOffsetY = -1*fmod(originY/(viewportHeight/2.0f), majorGridY);
+            float minorOffsetX = fmod(originX/(viewportWidth/2.0f), minorGridX);
+            float minorOffsetY = -1*fmod(originY/(viewportHeight/2.0f), minorGridY);
+
+            // Ensure a VAO is bound
+            glBindVertexArray(horizontalLineVao);
 
 
-        glUseProgram(gridProgram);
-        // Set uniforms.
-        glUniform1f(glGetUniformLocation(gridProgram, "offset"), minorOffsetY);
-        glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 1);
-        glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), minorGridY);
-        glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.05f, 0.05f, 0.05f, 1.0f);
-        // Draw grid.
-        glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMinorY);
+            glUseProgram(gridProgram);
+            // Set uniforms.
+            glUniform1f(glGetUniformLocation(gridProgram, "offset"), minorOffsetY);
+            glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 1);
+            glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), minorGridY);
+            glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.05f, 0.05f, 0.05f, 1.0f);
+            // Draw grid.
+            glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMinorY);
 
-        // Set uniforms.
-        glUniform1f(glGetUniformLocation(gridProgram, "offset"),minorOffsetX);
-        glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 0);
-        glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), minorGridX);
-        glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.05f, 0.05f, 0.05f, 1.0f);
-        // Draw grid.
-        glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMinorX);
+            // Set uniforms.
+            glUniform1f(glGetUniformLocation(gridProgram, "offset"),minorOffsetX);
+            glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 0);
+            glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), minorGridX);
+            glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.05f, 0.05f, 0.05f, 1.0f);
+            // Draw grid.
+            glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMinorX);
 
-        // Set uniforms.
-        glUniform1f(glGetUniformLocation(gridProgram, "offset"), majorOffsetY);
-        glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 1);
-        glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), majorGridY);
-        glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.1f, 0.1f, 0.1f, 1.0f);
-        // Draw grid.
-        glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMajorY);
+            // Set uniforms.
+            glUniform1f(glGetUniformLocation(gridProgram, "offset"), majorOffsetY);
+            glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 1);
+            glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), majorGridY);
+            glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.1f, 0.1f, 0.1f, 1.0f);
+            // Draw grid.
+            glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMajorY);
 
-        // Set uniforms.
-        glUniform1f(glGetUniformLocation(gridProgram, "offset"), majorOffsetX);
-        glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 0);
-        glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), majorGridX);
-        glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.1f, 0.1f, 0.1f, 1.0f);
-        // Draw grid.
-        glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMajorX);
+            // Set uniforms.
+            glUniform1f(glGetUniformLocation(gridProgram, "offset"), majorOffsetX);
+            glUniform1i(glGetUniformLocation(gridProgram, "horizontal"), 0);
+            glUniform1f(glGetUniformLocation(gridProgram, "gridSize"), majorGridX);
+            glUniform4f(glGetUniformLocation(gridProgram, "gridColor"), 0.1f, 0.1f, 0.1f, 1.0f);
+            // Draw grid.
+            glDrawArraysInstanced(GL_LINES, 0, 2, numberOfMajorX);
 
-        glBindVertexArray(0);
+            glBindVertexArray(0);
+        }*/
+        
+            
+
 
         // Present
         ::SwapBuffers(g_MainWindow.hDC);
@@ -446,6 +368,14 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
             return 0;
         break;
+    case WM_MOUSEWHEEL:
+        printf("MOUSEWHEEL %d @ %d %d\n", GET_WHEEL_DELTA_WPARAM(wParam), GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) );
+        //originY -= (float) GET_WHEEL_DELTA_WPARAM(wParam);
+        return 0;
+    case WM_MOUSEHWHEEL:
+        printf("MOUSE H WHEEL %d @ %d %d\n", GET_WHEEL_DELTA_WPARAM(wParam), GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) );
+        //originX -= (float) GET_WHEEL_DELTA_WPARAM(wParam);
+        return 0;
     case WM_DESTROY:
         ::PostQuitMessage(0);
         return 0;

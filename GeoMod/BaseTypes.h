@@ -32,4 +32,17 @@ struct gOffset {
     gFloat z;
 };
 
+struct gMatrix4x4 {
+    gFloat data[16];
+
+    static gMatrix4x4 Identity() {
+        return {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+    }
+};
+
 #endif // BASETYPES_H
