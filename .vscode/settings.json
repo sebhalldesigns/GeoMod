@@ -66,6 +66,9 @@
         "iomanip": "cpp",
         "algorithm": "cpp",
         "filesystem": "cpp",
-        "list": "cpp"
+        "list": "cpp",
+        "functional": "cpp",
+        "unordered_map": "cpp",
+        "xhash": "cpp"
     }
 }
