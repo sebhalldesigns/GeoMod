@@ -1,0 +1,17 @@
+[package]
+name = "geomod"
+version = "0.1.0"
+edition = "2021"
+description = "GEOMOD kernel core package"
+readme = "README.md"
+license = "MIT"
+
+[[bin]]
+name = "geomod_test"
+path = "src/bin.rs"
+
+[lib]
+name = "geomod"
+path = "src/lib.rs"
+
+[dependencies]
